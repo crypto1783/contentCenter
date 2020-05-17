@@ -11,6 +11,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.rocketmq.spring.core.RocketMQTemplate;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
 
 import javax.annotation.Resource;
@@ -68,6 +69,7 @@ public class ShareService {
         return shareDTO;
     }
 
+    @Transactional(rollbackFor = Exception.class)
     public Share auditById(Integer id, ShareAuditDTO auditDTO) {
         //1.查询share是否存在 不存在或者当前stauts != NOT_YET 抛出异常
         Share share = this.shareMapper.selectByPrimaryKey(id);
@@ -83,8 +85,7 @@ public class ShareService {
         }
 
         //2.审核资源 将状态设置为PASS REJECT
-        share.setAuditStatus(auditDTO.getAuditStatusEnum().toString());
-        this.shareMapper.updateByPrimaryKey(share);
+        modifyBonus(auditDTO, share);
         //3.设置为PASS 那么为发布人添加积分
         this.roctetMQTemplate.convertAndSend("add-bonus",
                 UserAddBonusMsgDTO.builder()
@@ -96,6 +97,11 @@ public class ShareService {
 
 
         return null;
+    }
+
+    private void modifyBonus(ShareAuditDTO auditDTO, Share share) {
+        share.setAuditStatus(auditDTO.getAuditStatusEnum().toString());
+        this.shareMapper.updateByPrimaryKey(share);
     }
 
     /* public static void main(String[] args) {
